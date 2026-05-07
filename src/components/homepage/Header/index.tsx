@@ -107,7 +107,7 @@ export default function HeroBanner() {
           const activeBanners = data.banners.filter((b: BannerSlide) => b.isActive);
           if (activeBanners.length > 0) {
             // Merge fetched images with fallback text/alignment to keep it looking premium
-            const mergedBanners = activeBanners.map((b, index) => {
+            const mergedBanners = activeBanners.map((b: Partial<BannerSlide>, index: number) => {
               const fallback = fallbackSlides[index % fallbackSlides.length];
               return {
                 ...fallback,
