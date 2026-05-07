@@ -24,6 +24,7 @@ const nextConfig = {
       "framer-motion",
     ],
   },
+  allowedDevOrigins: ["192.168.29.142"],
 };
 
 export default nextConfig;
