@@ -9,6 +9,10 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "Gracio ORGANIC",
   description: "Grace in every taste",
+  icons: {
+    icon: "/images/gracio-logo.jpg",
+    apple: "/images/gracio-logo.jpg",
+  }
 };
 
 export const viewport: Viewport = {
