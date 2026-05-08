@@ -6,53 +6,15 @@ import { cn } from "@/lib/utils";
 const footerLinksData: FooterLinks[] = [
   {
     id: 1,
-    title: "company",
+    title: "Contact",
     children: [
       {
         id: 11,
-        label: "about",
-        url: "#",
-      },
-      {
-        id: 12,
-        label: "features",
-        url: "#",
-      },
-      {
-        id: 13,
-        label: "works",
-        url: "#",
+        label: "+91 83049 85924",
+        url: "https://wa.me/918304985924",
       },
     ],
   },
-
-  {
-    id: 3,
-    title: "faq",
-    children: [
-      {
-        id: 31,
-        label: "account",
-        url: "#",
-      },
-      {
-        id: 32,
-        label: "manage deliveries",
-        url: "#",
-      },
-      {
-        id: 33,
-        label: "orders",
-        url: "#",
-      },
-      {
-        id: 34,
-        label: "payments",
-        url: "#",
-      },
-    ],
-  },
-
 ];
 
 const LinksSection = () => {
@@ -60,16 +22,13 @@ const LinksSection = () => {
     <>
       {footerLinksData.map((item) => (
         <section className="flex flex-col mt-4 lg:mt-0" key={item.id}>
-          <h3 className="font-medium text-xs uppercase tracking-widest mb-4 text-brand-light">
-            {item.title}
-          </h3>
           {item.children.map((link) => (
             <Link
               href={link.url}
               key={link.id}
               className={cn([
                 link.id !== 41 && link.id !== 43 && "capitalize",
-                "text-brand-light/70 hover:text-brand-light transition-all text-xs mb-3 w-fit",
+                "text-brand-light/90 hover:text-brand-light transition-all text-sm sm:text-base md:text-lg lg:text-xl font-medium mb-3 w-fit",
               ])}
             >
               {link.label}
