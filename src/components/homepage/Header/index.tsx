@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 type BannerSlide = {
   _id: string;
@@ -54,112 +55,101 @@ const fallbackSlides: BannerSlide[] = [
   },
 ];
 
-// Module-level banner cache — fetched once per session
 let bannerCache: BannerSlide[] | null = null;
 
 export default function HeroBanner() {
   const [current, setCurrent] = useState(0);
-  const [prev, setPrev] = useState<number | null>(null);
-  const [animating, setAnimating] = useState(false);
-  const [direction, setDirection] = useState<"next" | "prev">("next");
   const [paused, setPaused] = useState(false);
   const [slides, setSlides] = useState<BannerSlide[]>([]);
-  const api = process.env.NEXT_PUBLIC_API_URL
+  const [loading, setLoading] = useState(true);
+  const api = process.env.NEXT_PUBLIC_API_URL;
 
-  const goTo = useCallback(
-    (index: number, dir: "next" | "prev" = "next") => {
-      if (animating || index === current) return;
-      setDirection(dir);
-      setPrev(current);
-      setAnimating(true);
-      setCurrent(index);
-      setTimeout(() => {
-        setPrev(null);
-        setAnimating(false);
-      }, 700);
-    },
-    [animating, current]
-  );
-  const isMobile =
-    typeof window !== "undefined" && window.innerWidth < 768;
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
-  useEffect(() => {
+  const fetchBanners = useCallback(async () => {
     if (!api) {
       setSlides(fallbackSlides);
+      setLoading(false);
       return;
     }
 
-    // Use cached banners if already fetched this session
     if (bannerCache) {
       setSlides(bannerCache);
+      setLoading(false);
       return;
     }
 
-    const fetchBanners = async () => {
-      try {
-        const res = await fetch(`${api}/banner`);
-        if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) {
-          throw new Error("Invalid response");
+    try {
+      const res = await fetch(`${api}/banner`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      
+      const data = await res.json();
+      if (data.banners && Array.isArray(data.banners)) {
+        const activeBanners = data.banners.filter((b: BannerSlide) => b.isActive);
+        if (activeBanners.length > 0) {
+          const mergedBanners = activeBanners.map((b: Partial<BannerSlide>) => {
+            return {
+              _id: b._id || Math.random().toString(),
+              desktopImage: b.desktopImage || "",
+              mobileImage: b.mobileImage || "",
+              isActive: b.isActive ?? true,
+              tag: b.tag || "",
+              headline: b.headline || "",
+              subheadline: b.subheadline || "",
+              align: b.align || "left",
+            } as BannerSlide;
+          });
+          bannerCache = mergedBanners;
+          setSlides(mergedBanners);
+          setLoading(false);
+          return;
         }
-        const data = await res.json();
-
-        if (data.banners && Array.isArray(data.banners)) {
-          const activeBanners = data.banners.filter((b: BannerSlide) => b.isActive);
-          if (activeBanners.length > 0) {
-            // Merge fetched images with fallback text/alignment to keep it looking premium
-            const mergedBanners = activeBanners.map((b: Partial<BannerSlide>, index: number) => {
-              const fallback = fallbackSlides[index % fallbackSlides.length];
-              return {
-                ...fallback,
-                ...b, // b overrides fallback if it has matching fields
-                align: b.align || fallback.align,
-                headline: b.headline || fallback.headline,
-                subheadline: b.subheadline || fallback.subheadline,
-                tag: b.tag || fallback.tag
-              };
-            });
-            bannerCache = mergedBanners;
-            setSlides(mergedBanners);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error("HeroBanner: Failed to fetch banners from API.", err);
       }
-      bannerCache = fallbackSlides;
-      setSlides(fallbackSlides);
-    };
+    } catch (err) {
+      console.error("HeroBanner: Fetch failed", err);
+    }
+    
+    bannerCache = fallbackSlides;
+    setSlides(fallbackSlides);
+    setLoading(false);
+  }, [api]);
 
+  useEffect(() => {
     fetchBanners();
-  }, []);
+  }, [fetchBanners]);
 
   const next = useCallback(() => {
     if (slides.length > 0) {
-      goTo((current + 1) % slides.length, "next");
+      setCurrent((prev) => (prev + 1) % slides.length);
     }
-  }, [current, goTo, slides.length]);
+  }, [slides.length]);
 
   const back = useCallback(() => {
     if (slides.length > 0) {
-      goTo((current - 1 + slides.length) % slides.length, "prev");
+      setCurrent((prev) => (prev - 1 + slides.length) % slides.length);
     }
-  }, [current, goTo, slides.length]);
+  }, [slides.length]);
 
   useEffect(() => {
-    if (paused) return;
-    const id = setInterval(next, 5000);
+    if (paused || loading || slides.length <= 1) return;
+    const id = setInterval(next, 6000);
     return () => clearInterval(id);
-  }, [next, paused]);
+  }, [next, paused, loading, slides.length]);
 
-  // Fallback will ensure slides is never empty
-  if (!slides || slides.length === 0) {
-    return null;
+  if (loading) {
+    return (
+      <div className="w-full h-[90vh] bg-[#fdf5e6] animate-pulse flex items-center justify-center">
+        <div className="text-[#4b3121] font-light tracking-widest uppercase">Luxy</div>
+      </div>
+    );
   }
+
+  const slide = slides[current];
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Montserrat:wght@300;400;500&display=swap');
 
         .banner-root {
           font-family: 'Montserrat', sans-serif;
@@ -167,349 +157,190 @@ export default function HeroBanner() {
           width: 100%;
           height: 92vh;
           min-height: 560px;
-          max-height: 900px;
           background: #fdf5e6;
           overflow: hidden;
-          cursor: default;
         }
 
-        /* ── slide images ── */
-        .slide-img {
+        .slide-container {
           position: absolute;
           inset: 0;
-          background-size: cover;
-          background-position: center;
-          transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1),
-                      transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .slide-img.active {
-          opacity: 1;
-          transform: scale(1.03);
-          z-index: 2;
-        }
-        .slide-img.exiting {
-          opacity: 0;
-          transform: scale(1);
-          z-index: 1;
-        }
-        .slide-img.idle {
-          opacity: 0;
-          z-index: 0;
-        }
-
-        /* ── overlay ── */
-        // .slide-overlay {
-        //   position: absolute;
-        //   inset: 0;
-        //   z-index: 3;
-        //   background: linear-gradient(
-        //     105deg,
-        //     rgba(255,255,255,0.78) 0%,
-        //     rgba(255,255,255,0.44) 50%,
-        //     rgba(255,255,255,0.08) 100%
-        //   );
-        // }
-        .slide-overlay {
-  background: linear-gradient(
-    105deg,
-    rgba(255,255,255,0.2) 0%,
-    rgba(255,255,255,0.1) 50%,
-    rgba(255,255,255,0.05) 100%
-  );
-}
-        .slide-overlay.center {
-          background: linear-gradient(
-            180deg,
-            rgba(255,255,255,0.22) 0%,
-            rgba(255,255,255,0.70) 38%,
-            rgba(255,255,255,0.22) 100%
-          );
-        }
-        .slide-overlay.right {
-          background: linear-gradient(
-            255deg,
-            rgba(255,255,255,0.80) 0%,
-            rgba(255,255,255,0.44) 50%,
-            rgba(255,255,255,0.06) 100%
-          );
-        }
-
-        /* ── content ── */
-        .banner-content {
-          position: absolute;
-          inset: 0;
-          z-index: 4;
           display: flex;
           align-items: center;
-          padding: 0 7vw;
+          padding: 0 8vw;
+          z-index: 10;
         }
-        .banner-content.center { justify-content: center; text-align: center; }
-        .banner-content.right  { justify-content: flex-end; }
 
-        .text-block {
-          max-width: 560px;
-        }
-        .banner-content.center .text-block { max-width: 620px; }
+        .slide-container.center { justify-content: center; text-align: center; }
+        .slide-container.right { justify-content: flex-end; text-align: right; }
 
-        /* tag */
-        .slide-tag {
-          display: inline-block;
-          font-family: 'Montserrat', sans-serif;
-          font-size: 0.68rem;
-          font-weight: 500;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
+        .text-content {
+          max-width: 600px;
           color: #4b3121;
-          border: 1px solid #4b3121;
-          padding: 5px 14px;
-          margin-bottom: 22px;
-          opacity: 0;
-          transform: translateY(16px);
-          animation: fadeUp 0.55s 0.1s forwards;
         }
 
-        /* headline */
-        .slide-headline {
+        .headline {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(3rem, 6.5vw, 6.2rem);
+          font-size: clamp(3rem, 7vw, 6rem);
           font-weight: 300;
-          line-height: 1.05;
-          letter-spacing: -0.01em;
-          color: #4b3121;
+          line-height: 1.1;
+          margin-bottom: 24px;
           white-space: pre-line;
-          margin: 0 0 20px;
-          opacity: 0;
-          transform: translateY(24px);
-          animation: fadeUp 0.6s 0.22s forwards;
         }
 
-        /* sub */
-        .slide-sub {
-          font-size: 0.95rem;
+        .subheadline {
+          font-size: 1rem;
           font-weight: 300;
-          line-height: 1.65;
-          color: #4b3121;
-          max-width: 400px;
-          margin-bottom: 36px;
-          opacity: 0;
-          transform: translateY(20px);
-          animation: fadeUp 0.6s 0.36s forwards;
-        }
-        .banner-content.center .slide-sub { margin-inline: auto; }
-
-        /* buttons */
-        .btn-row {
-          display: flex;
-          gap: 14px;
-          flex-wrap: wrap;
-          opacity: 0;
-          transform: translateY(16px);
-          animation: fadeUp 0.55s 0.5s forwards;
-        }
-        .banner-content.center .btn-row { justify-content: center; }
-
-        .btn-primary {
-          background: #4b3121;
-          color: #fff;
-          font-family: 'Montserrat', sans-serif;
-          font-size: 0.8rem;
-          font-weight: 500;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          padding: 14px 34px;
-          border: none;
-          cursor: pointer;
-          transition: background 0.25s, transform 0.2s;
-        }
-        .btn-primary:hover { background: #321f14; transform: translateY(-2px); }
-
-        .btn-ghost {
-          background: transparent;
-          color: #4b3121;
-          font-family: 'Montserrat', sans-serif;
-          font-size: 0.8rem;
-          font-weight: 500;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          padding: 14px 34px;
-          border: 1px solid #4b3121;
-          cursor: pointer;
-          transition: background 0.25s, color 0.25s, transform 0.2s;
-        }
-        .btn-ghost:hover { background: #4b3121; color: #fff; transform: translateY(-2px); }
-
-        /* ── progress bar ── */
-        .progress-bar {
-  display: none;
-}
-        @keyframes progress {
-          from { width: 0; }
-          to   { width: 100%; }
+          line-height: 1.6;
+          margin-bottom: 40px;
+          opacity: 0.9;
         }
 
-        /* ── nav arrows ── */
-        .arrow-btn {
+
+
+        .nav-btn {
           position: absolute;
           top: 50%;
           transform: translateY(-50%);
-          z-index: 8;
-          background: rgba(255,255,255,0.88);
-          border: 1px solid #e8d5c4;
-          width: 48px;
-          height: 48px;
+          z-index: 20;
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(75, 49, 33, 0.1);
           display: flex;
           align-items: center;
           justify-content: center;
+          color: #4b3121;
           cursor: pointer;
-          transition: background 0.2s, border-color 0.2s, transform 0.2s;
-          backdrop-filter: blur(6px);
+          transition: all 0.3s ease;
         }
-        .arrow-btn:hover {
-          background: #4b3121;
-          border-color: #4b3121;
-          transform: translateY(-50%) scale(1.08);
-        }
-        .arrow-btn:hover svg { stroke: #fff; }
-        .arrow-btn svg { stroke: #4b3121; transition: stroke 0.2s; }
-        .arrow-left  { left: 28px; }
-        .arrow-right { right: 28px; }
 
-        /* ── dot indicators ── */
-        .dots {
+        .nav-btn:hover {
+          background: #4b3121;
+          color: white;
+        }
+
+        .nav-prev { left: 30px; }
+        .nav-next { right: 30px; }
+
+        .indicators {
           position: absolute;
-          bottom: 28px;
+          bottom: 40px;
           left: 50%;
           transform: translateX(-50%);
-          z-index: 8;
           display: flex;
-          gap: 10px;
-          align-items: center;
+          gap: 12px;
+          z-index: 20;
         }
-        .dot {
-          width: 7px;
-          height: 7px;
+
+        .indicator {
+          width: 8px;
+          height: 8px;
           border-radius: 50%;
           border: 1px solid #4b3121;
-          background: transparent;
+          transition: all 0.3s ease;
           cursor: pointer;
-          padding: 0;
-          transition: background 0.25s, transform 0.2s;
+          background: transparent;
         }
-        .dot.active {
+
+        .indicator.active {
           background: #4b3121;
-          transform: scale(1.3);
+          width: 24px;
+          border-radius: 4px;
         }
 
-        /* ── slide counter ── */
-        .slide-counter {
-          position: absolute;
-          bottom: 32px;
-          right: 40px;
-          z-index: 8;
-          font-size: 0.72rem;
-          letter-spacing: 0.12em;
-          color: #c49070;
-        }
-        .slide-counter span { color: #4b3121; font-weight: 500; }
+        @media (max-width: 768px) {
+          .nav-btn { display: none; }
+          .slide-container { padding: 0 5vw; text-align: center !important; justify-content: center !important; }
 
-        @keyframes fadeUp {
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        @media (max-width: 640px) {
-          .arrow-btn { display: none; }
-          .banner-content { padding: 0 5vw; }
-          .banner-content.right { justify-content: flex-start; }
-          .slide-overlay.right {
-            background: linear-gradient(180deg,rgba(255,255,255,0.15) 0%,rgba(255,255,255,0.72) 55%,rgba(255,255,255,0.12) 100%);
-          }
         }
       `}</style>
 
-      <section
+      <section 
         className="banner-root"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
-        aria-label="Hero banner"
       >
-        {/* slide images */}
-        {slides.map((s, i) => {
-          let cls = "slide-img idle";
-          if (i === current) cls = "slide-img active";
-          else if (i === prev) cls = "slide-img exiting";
-          return (
-            <div
-              key={s._id}
-              className={cls}
-              // style={{ backgroundImage: `url(${s.image})` }}
-              //               style={{
-              //   // backgroundImage: `url(${s.desktopImage})`
-
-
-              //   backgroundImage: `url(${isMobile ? s.mobileImage : s.desktopImage})`
-
-              // }}
-              style={{
-                backgroundImage: `url(${isMobile ? s.mobileImage : s.desktopImage
-                  })`,
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={slide._id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1, ease: "easeInOut" }}
+            className="absolute inset-0"
+          >
+            <div 
+              className="absolute inset-0 bg-cover bg-center transition-transform duration-[10000ms] ease-linear scale-110"
+              style={{ 
+                backgroundImage: `url(${isMobile ? slide.mobileImage : slide.desktopImage})`,
+                transform: paused ? 'scale(1.1)' : 'scale(1.15)'
               }}
-              aria-hidden={i !== current}
             />
-          );
-        })}
-
-        {/* overlay */}
-        <div className={`slide-overlay ${slides[current].align}`} />
-
-        {/* text content — re-mount on slide change to retrigger animations */}
-        <div className={`banner-content ${slides[current].align}`} key={current}>
-          <div className="text-block">
-            {/* <span className="slide-tag">{slides[current].tag}</span> */}
-
-            <h1 className="slide-headline">{slides[current].headline}</h1>
-            <p className="slide-sub">{slides[current].subheadline}</p>
-            <div className="btn-row">
-              {/* <button className="btn-primary">{slide.cta}</button>
-              {slide.ctaSecondary && (
-                <button className="btn-ghost">{slide.ctaSecondary}</button>
-              )} */}
+            {/* Only show overlay if there is text to display */}
+            {(slide.headline || slide.subheadline || slide.tag) && (
+              <div className="absolute inset-0 bg-white/10 backdrop-contrast-[0.9]" />
+            )}
+            
+            <div className={`slide-container ${slide.align}`}>
+              <div className="text-content">
+                {slide.tag && (
+                  <motion.span 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="inline-block text-[0.65rem] tracking-[0.3em] uppercase mb-4 border-b border-[#4b3121]/30 pb-1"
+                  >
+                    {slide.tag}
+                  </motion.span>
+                )}
+                
+                {slide.headline && (
+                  <motion.h1 
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="headline"
+                  >
+                    {slide.headline}
+                  </motion.h1>
+                )}
+                
+                {slide.subheadline && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                    className="subheadline"
+                  >
+                    {slide.subheadline}
+                  </motion.p>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </AnimatePresence>
 
-        {/* progress bar */}
-        {!paused && <div className="progress-bar" key={`pb-${current}`} />}
-
-        {/* arrows */}
-        <button className="arrow-btn arrow-left" onClick={back} aria-label="Previous slide">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="1.8">
+        <button className="nav-btn nav-prev" onClick={back}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <button className="arrow-btn arrow-right" onClick={next} aria-label="Next slide">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="1.8">
+        <button className="nav-btn nav-next" onClick={next}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
 
-        {/* dots */}
-        <div className="dots" role="tablist" aria-label="Slide navigation">
+        <div className="indicators">
           {slides.map((_, i) => (
-            <button
+            <button 
               key={i}
-              className={`dot${i === current ? " active" : ""}`}
-              onClick={() => goTo(i, i > current ? "next" : "prev")}
-              role="tab"
-              aria-selected={i === current}
-              aria-label={`Go to slide ${i + 1}`}
+              className={`indicator ${i === current ? 'active' : ''}`}
+              onClick={() => setCurrent(i)}
             />
           ))}
-        </div>
-
-        {/* counter */}
-        <div className="slide-counter">
-          <span>{String(current + 1).padStart(2, "0")}</span> /{" "}
-          {String(slides.length).padStart(2, "0")}
         </div>
       </section>
     </>

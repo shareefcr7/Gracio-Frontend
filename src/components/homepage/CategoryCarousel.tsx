@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import * as motion from "framer-motion/client";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { integralCF } from "@/styles/fonts";
 import {
@@ -21,100 +21,104 @@ export default function CategoryCarousel() {
   const [loading, setLoading] = useState(true);
   const api = process.env.NEXT_PUBLIC_API_URL;
 
-  useEffect(() => {
-    if (!api) { setLoading(false); return; }
-    fetch(`${api}/category`)
-      .then(res => {
-        if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) {
-          throw new Error("Invalid response from server");
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data.categories) setCategories(data.categories);
-      })
-      .catch(err => {
-        console.error("Failed to fetch categories:", err);
-      })
-      .finally(() => setLoading(false));
+  const fetchCategories = useCallback(async () => {
+    if (!api) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${api}/category`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      
+      const data = await res.json();
+      if (data.categories) {
+        setCategories(data.categories);
+      }
+    } catch (err) {
+      console.error("CategoryCarousel: Fetch failed", err);
+    } finally {
+      setLoading(false);
+    }
   }, [api]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   if (!loading && categories.length === 0) return null;
 
   return (
-    <section className="max-w-frame mx-auto text-center px-4 xl:px-0">
+    <section className="max-w-frame mx-auto text-center px-4 xl:px-0 py-16 md:py-24">
       <motion.h2
-        initial={{ y: "100px", opacity: 0 }}
-        whileInView={{ y: "0", opacity: 1 }}
+        initial={{ y: 40, opacity: 0 }}
+        whileInView={{ y: 0, opacity: 1 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className={cn([integralCF.className, "text-[32px] md:text-5xl mb-8 md:mb-14 capitalize"])}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className={cn([
+          integralCF.className,
+          "text-[32px] md:text-5xl mb-12 md:mb-20 capitalize tracking-tight"
+        ])}
       >
-        Explore for More
+        EXPLORE OUR COLLECTIONS
       </motion.h2>
 
       <motion.div
-        initial={{ y: "100px", opacity: 0 }}
-        whileInView={{ y: "0", opacity: 1 }}
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
-        transition={{ delay: 0.4, duration: 0.6 }}
+        transition={{ delay: 0.2, duration: 0.8 }}
       >
         {loading ? (
-          <div className="flex gap-4 overflow-hidden">
+          <div className="flex gap-8 justify-center overflow-hidden">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex flex-col items-center gap-3 animate-pulse shrink-0">
-                <div className="w-[160px] h-[160px] rounded-full bg-brand/10" />
-                <div className="h-4 w-24 bg-brand/10 rounded" />
+              <div key={i} className="flex flex-col items-center gap-4 animate-pulse shrink-0">
+                <div className="w-[160px] h-[160px] md:w-[200px] md:h-[200px] rounded-full bg-[#f5ede4]" />
+                <div className="h-4 w-24 bg-[#f5ede4] rounded" />
               </div>
             ))}
           </div>
         ) : (
-          <Carousel opts={{ align: "start" }} className="w-full mb-6 md:mb-9">
-            <CarouselContent className="mx-4 xl:mx-0 space-x-6">
-              {categories.map(cat => (
-                <CarouselItem key={cat._id} className="pl-0 basis-auto">
+          <Carousel opts={{ align: "start" }} className="w-full mb-12">
+            <CarouselContent className="-ml-4 md:-ml-8">
+              {categories.map((cat) => (
+                <CarouselItem key={cat._id} className="pl-4 md:pl-8 basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
                   <Link
                     href={`/shop?categories=${encodeURIComponent(cat.name)}`}
-                    className="flex flex-col items-center gap-3 group"
+                    className="flex flex-col items-center gap-5 group"
                   >
-                    <div className="relative w-[140px] h-[140px] sm:w-[180px] sm:h-[180px] rounded-full overflow-hidden bg-[#f5ede4] border-2 border-transparent group-hover:border-brand transition-all duration-300 shrink-0">
+                    <div className="relative w-[180px] h-[180px] md:w-[220px] md:h-[220px] rounded-full overflow-hidden bg-[#f5ede4] shadow-sm transition-all duration-500 group-hover:shadow-xl group-hover:-translate-y-2 border border-transparent group-hover:border-[#4b3121]/10">
                       {cat.image ? (
                         <Image
                           src={cat.image}
                           alt={cat.name}
                           fill
-                          className="object-cover group-hover:scale-110 transition-all duration-500"
+                          className="object-cover transition-transform duration-700 group-hover:scale-110"
                           unoptimized
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-4xl">
-                          🛍️
+                        <div className="w-full h-full flex items-center justify-center text-5xl grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all">
+                          👜
                         </div>
                       )}
                     </div>
-                    <span className="text-sm sm:text-base font-medium text-brand group-hover:text-brand-dark transition-colors">
+                    <span className="text-sm md:text-base font-bold text-[#4b3121] tracking-wide uppercase group-hover:text-black transition-colors">
                       {cat.name}
                     </span>
                   </Link>
                 </CarouselItem>
               ))}
             </CarouselContent>
-
-            {/* Prev / Next chevron buttons */}
-            <CarouselPrevious
-              className="hidden sm:flex -left-5 xl:-left-8 border-brand/20 text-brand hover:bg-brand hover:text-white hover:border-brand disabled:opacity-20"
-            />
-            <CarouselNext
-              className="hidden sm:flex -right-5 xl:-right-8 border-brand/20 text-brand hover:bg-brand hover:text-white hover:border-brand disabled:opacity-20"
-            />
+            <CarouselPrevious className="hidden md:flex -left-12 border-[#4b3121]/10 hover:bg-[#4b3121] hover:text-white" />
+            <CarouselNext className="hidden md:flex -right-12 border-[#4b3121]/10 hover:bg-[#4b3121] hover:text-white" />
           </Carousel>
         )}
 
         <Link
           href="/shop"
-          className="inline-block px-[54px] py-4 border rounded-full hover:bg-brand hover:text-white text-brand transition-all font-medium text-sm sm:text-base border-brand/20"
+          className="inline-block px-10 py-4 border border-[#4b3121] rounded-full text-[#4b3121] text-sm uppercase tracking-widest font-medium hover:bg-[#4b3121] hover:text-white transition-all duration-300"
         >
-          View All
+          View All Categories
         </Link>
       </motion.div>
     </section>
